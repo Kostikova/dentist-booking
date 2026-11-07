@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="uk"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Запис до стоматолога</title>
+<style>
+:root{--bg:#f4f7fb;--card:#fff;--tx:#14213d;--mu:#64708a;--ac:#1f6feb;--acl:#e6f0ff;--bd:#d8e0ee;--ok:#168a4a;--er:#c62828;--dis:#eceff4;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0f1624;--card:#18223a;--tx:#e8edf8;--mu:#97a3bd;--ac:#5b9bff;--acl:#1d3158;--bd:#2b3a5c;--dis:#222d47;--ok:#4cc486;--er:#ff7b7b}}
+*{box-sizing:border-box}html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--tx)}
+.w{max-width:720px;margin:0 auto;padding:16px}
+header{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+h1{font-size:20px;margin:0}h2{margin:0 0 4px;font-size:18px}
+.tabs button{background:none;border:1px solid var(--bd);color:var(--tx);padding:6px 12px;border-radius:8px;cursor:pointer;margin-left:6px}
+.tabs button.on{background:var(--ac);color:#fff;border-color:var(--ac)}
+.prog{display:flex;gap:6px;margin:8px 0}.prog i{flex:1;height:6px;border-radius:3px;background:var(--bd)}.prog i.d{background:var(--ac)}
+.st{font-size:13px;color:var(--mu);margin-bottom:12px}
+.card{background:var(--card);border:2px solid var(--bd);border-radius:12px;padding:14px;margin-bottom:10px;cursor:pointer;text-align:left;width:100%;color:var(--tx);font:inherit}
+.card:hover{border-color:var(--ac)}.card.sel{border-color:var(--ac);background:var(--acl)}
+.row{display:flex;justify-content:space-between;gap:8px}.mu{color:var(--mu);font-size:14px}
+.days,.slots{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px}
+.day,.slot{border:2px solid var(--bd);background:var(--card);color:var(--tx);border-radius:10px;padding:8px 12px;cursor:pointer;font:inherit}
+.day.sel,.slot.sel{border-color:var(--ac);background:var(--acl)}
+.slot.busy{background:var(--dis);color:var(--mu);text-decoration:line-through;cursor:not-allowed;border-color:var(--dis)}
+label{display:block;margin:10px 0 4px;font-size:14px}
+input{width:100%;padding:10px;border:2px solid var(--bd);border-radius:8px;background:var(--card);color:var(--tx);font:inherit}
+input.bad{border-color:var(--er)}.err{color:var(--er);font-size:13px;min-height:16px}
+.nav{display:flex;justify-content:space-between;margin-top:16px}
+.btn{padding:11px 20px;border-radius:10px;border:0;background:var(--ac);color:#fff;font:inherit;cursor:pointer}
+.btn.g{background:none;color:var(--tx);border:1px solid var(--bd)}.btn:disabled{background:var(--dis);color:var(--mu);cursor:not-allowed}
+.btn.r{background:var(--er)}
+.ok{text-align:center;padding:24px 0}.ok b{font-size:40px;color:var(--ok)}
+dl{display:grid;grid-template-columns:110px 1fr;gap:8px;margin:12px 0}dt{color:var(--mu)}dd{margin:0;font-weight:600}
+.badge{font-size:12px;padding:2px 8px;border-radius:99px;background:var(--acl);color:var(--ac)}
+.badge.c{background:var(--dis);color:var(--mu)}
+</style></head><body><div class="w">
+<header><h1>🦷 Запис до стоматолога</h1><div class="tabs"><button id="t1" class="on">Новий запис</button><button id="t2">Мої записи (<span id="cnt">0</span>)</button></div></header>
+<div id="app"></div></div>
+<script>
+var SV=[{id:1,n:"Консультація / огляд",p:400,m:30,d:"Огляд, план лікування"},{id:2,n:"Лікування карієсу",p:1200,m:60,d:"Пломба, анестезія"},{id:3,n:"Професійна гігієна",p:1500,m:60,d:"Видалення нальоту й каменю"},{id:4,n:"Відбілювання",p:3500,m:90,d:"Безпечне відбілювання"}];
+var DR=[{id:1,n:"Олена Коваленко",s:"Терапевт",e:12},{id:2,n:"Андрій Мельник",s:"Гігієніст",e:8},{id:3,n:"Ірина Бондар",s:"Хірург-імплантолог",e:15}];
+var HRS=["09:00","10:00","11:00","12:00","14:00","15:00","16:00","17:00"];
+var DN=["нд","пн","вт","ср","чт","пт","сб"];
+var S={step:1,sv:null,dr:null,day:null,time:null,name:"",ph:"",tab:"new",done:null,errs:{}};
+var APPTS=[];var BUSY={};
+function days(){var a=[],d=new Date();for(var i=1;a.length<7;i++){var x=new Date(d.getTime()+i*864e5);if(x.getDay()!=0)a.push(x)}return a}
+var DAYS=days();
+function key(x){return x.toISOString().slice(0,10)}
+function fmt(x){return DN[x.getDay()]+", "+x.getDate()+"."+String(x.getMonth()+1).padStart(2,"0")}
+function isBusy(t){var k=key(S.day)+"|"+S.dr.id+"|"+t;if(BUSY[k])return true;var h=+t.slice(0,2),seed=(S.dr.id*7+S.day.getDate()*3+h)%5;return seed==0}
+function bk(t){return key(S.day)+"|"+S.dr.id+"|"+t}
+function $(i){return document.getElementById(i)}
+function R(){
+ $("cnt").textContent=APPTS.filter(function(a){return a.ok}).length;
+ $("t1").className=S.tab=="new"?"on":"";$("t2").className=S.tab=="my"?"on":"";
+ var h="";
+ if(S.tab=="my")h=my();else if(S.done)h=fin();else h=wiz();
+ $("app").innerHTML=h;bind()}
+function prog(){var h='<div class="prog">';for(var i=1;i<=5;i++)h+='<i class="'+(i<=S.step?"d":"")+'"></i>';return h+'</div><div class="st">Крок '+S.step+' з 5</div>'}
+function wiz(){var h=prog(),n=false;
+ if(S.step==1){h+="<h2>Оберіть послугу</h2><p class='mu'>Яка допомога вам потрібна?</p>";SV.forEach(function(s){h+='<button class="card '+(S.sv&&S.sv.id==s.id?"sel":"")+'" data-sv="'+s.id+'"><div class="row"><b>'+s.n+'</b><b>'+s.p+' грн</b></div><div class="mu">'+s.d+' · '+s.m+' хв</div></button>'});n=!!S.sv}
+ if(S.step==2){h+="<h2>Оберіть лікаря</h2>";DR.forEach(function(d){h+='<button class="card '+(S.dr&&S.dr.id==d.id?"sel":"")+'" data-dr="'+d.id+'"><b>'+d.n+'</b><div class="mu">'+d.s+' · досвід '+d.e+' р.</div></button>'});n=!!S.dr}
+ if(S.step==3){h+="<h2>Дата й час</h2><p class='mu'>Закреслені години вже зайняті.</p><div class='days'>";DAYS.forEach(function(x,i){h+='<button class="day '+(S.day&&key(S.day)==key(x)?"sel":"")+'" data-day="'+i+'">'+fmt(x)+'</button>'});h+="</div>";
+  if(S.day){h+="<div class='slots'>";HRS.forEach(function(t){var b=isBusy(t);h+='<button class="slot '+(b?"busy":"")+(S.time==t?" sel":"")+'" '+(b?"disabled":"")+' data-t="'+t+'">'+t+'</button>'});h+="</div>"}n=!!S.time}
+ if(S.step==4){h+="<h2>Ваші дані</h2><label>ПІБ</label><input id='nm' class='"+(S.errs.n?"bad":"")+"' value='"+S.name+"' placeholder='Прізвище Ім’я'><div class='err'>"+(S.errs.n||"")+"</div><label>Телефон</label><input id='ph' class='"+(S.errs.p?"bad":"")+"' value='"+S.ph+"' placeholder='+380 __ ___ __ __'><div class='err'>"+(S.errs.p||"")+"</div>";n=true}
+ if(S.step==5){h+="<h2>Перевірте запис</h2><dl><dt>Послуга</dt><dd>"+S.sv.n+"</dd><dt>Лікар</dt><dd>"+S.dr.n+"</dd><dt>Дата</dt><dd>"+fmt(S.day)+"</dd><dt>Час</dt><dd>"+S.time+"</dd><dt>Вартість</dt><dd>"+S.sv.p+" грн</dd><dt>Пацієнт</dt><dd>"+S.name+", "+S.ph+"</dd></dl>";n=true}
+ h+='<div class="nav"><button class="btn g" id="bk" '+(S.step==1?"disabled":"")+'>← Назад</button><button class="btn" id="nx" '+(n?"":"disabled")+'>'+(S.step==5?"Підтвердити запис ✓":"Далі →")+'</button></div>';return h}
+function fin(){var a=S.done;return "<div class='ok'><b>✓</b><h2>Запис підтверджено</h2><p class='mu'>Номер запису № "+a.id+"</p></div><dl><dt>Послуга</dt><dd>"+a.sv.n+"</dd><dt>Лікар</dt><dd>"+a.dr.n+"</dd><dt>Коли</dt><dd>"+fmt(a.day)+", "+a.time+"</dd></dl><div class='nav'><button class='btn g' id='mine'>Мої записи</button><button class='btn' id='nw'>Новий запис</button></div>"}
+function my(){if(!APPTS.length)return "<p class='mu'>Записів ще немає. Створіть перший у вкладці «Новий запис».</p>";var h="<h2>Мої записи</h2>";APPTS.slice().reverse().forEach(function(a){h+='<div class="card" style="cursor:default"><div class="row"><b>№ '+a.id+' · '+a.sv.n+'</b><span class="badge '+(a.ok?"":"c")+'">'+(a.ok?"Активний":"Скасовано")+'</span></div><div class="mu">'+a.dr.n+' · '+fmt(a.day)+', '+a.time+'</div>'+(a.ok?'<button class="btn r" style="margin-top:8px" data-c="'+a.id+'">Скасувати запис</button>':"")+'</div>'});return h}
+function bind(){
+ [].forEach.call(document.querySelectorAll("[data-sv]"),function(e){e.onclick=function(){S.sv=SV.filter(function(x){return x.id==e.dataset.sv})[0];R()}});
+ [].forEach.call(document.querySelectorAll("[data-dr]"),function(e){e.onclick=function(){S.dr=DR.filter(function(x){return x.id==e.dataset.dr})[0];S.time=null;R()}});
+ [].forEach.call(document.querySelectorAll("[data-day]"),function(e){e.onclick=function(){S.day=DAYS[+e.dataset.day];S.time=null;R()}});
+ [].forEach.call(document.querySelectorAll("[data-t]"),function(e){e.onclick=function(){S.time=e.dataset.t;R()}});
+ [].forEach.call(document.querySelectorAll("[data-c]"),function(e){e.onclick=function(){if(!confirm("Скасувати цей запис?"))return;APPTS.forEach(function(a){if(a.id==e.dataset.c){a.ok=false;delete BUSY[a.k]}});R()}});
+ var nx=$("nx"),bk2=$("bk");
+ if(nx)nx.onclick=function(){
+  if(S.step==4){S.name=$("nm").value.trim();S.ph=$("ph").value.trim();S.errs={};
+   if(S.name.split(/\s+/).length<2)S.errs.n="Введіть прізвище та ім’я";
+   if(!/^\+?\d[\d\s\-()]{8,}$/.test(S.ph))S.errs.p="Введіть коректний номер телефону";
+   if(S.errs.n||S.errs.p){R();return}}
+  if(S.step==5){var k=bk(S.time),a={id:1000+APPTS.length+1,sv:S.sv,dr:S.dr,day:S.day,time:S.time,ok:true,k:k};BUSY[k]=1;APPTS.push(a);S.done=a;R();return}
+  S.step++;R()};
+ if(bk2)bk2.onclick=function(){if(S.step>1){S.step--;R()}};
+ if($("nw"))$("nw").onclick=reset;if($("mine"))$("mine").onclick=function(){S.tab="my";R()}}
+function reset(){S={step:1,sv:null,dr:null,day:null,time:null,name:"",ph:"",tab:"new",done:null,errs:{}};R()}
+$("t1").onclick=function(){S.tab="new";R()};$("t2").onclick=function(){S.tab="my";R()};
+R();
+</script></body></html>
